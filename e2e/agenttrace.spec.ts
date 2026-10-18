@@ -5,18 +5,19 @@ import path from 'node:path';
 
 const fixture = `{"schema_version":"1.0","trace_id":"e2e-valid","event_id":"e2e-call","timestamp":"2026-10-18T10:00:00Z","type":"tool_call","call_id":"e2e-c1","tool":"process.exec","arguments":{"argv":["sudo","id"],"cwd":"/workspace","shell":false}}\n`;
 const malformed = '{"schema_version":"1.0","trace_id":"bad","event_id":"bad-1","type":"tool_call"}\n';
+const baseOrigin = new URL(process.env.AGENTTRACE_BASE_URL ?? 'http://127.0.0.1:4173').origin;
 
 test.beforeEach(async ({ page }) => {
   const pageErrors: Error[] = [];
   page.on('pageerror', error => pageErrors.push(error));
   page.on('requestfailed', request => {
     const url = request.url();
-    if (url.startsWith('http://127.0.0.1') && !url.endsWith('/favicon.ico')) {
+    if (url.startsWith(baseOrigin) && !url.endsWith('/favicon.ico')) {
       throw new Error(`First-party request failed: ${request.method()} ${url} ${request.failure()?.errorText ?? ''}`);
     }
   });
   page.on('response', response => {
-    if (response.url().startsWith('http://127.0.0.1') && response.status() >= 500) {
+    if (response.url().startsWith(baseOrigin) && response.status() >= 500) {
       throw new Error(`First-party HTTP ${response.status()}: ${response.url()}`);
     }
   });

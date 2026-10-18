@@ -134,8 +134,20 @@ docker run --rm --name agenttrace -p 127.0.0.1:8000:8000 --read-only --tmpfs /tm
 The multi-stage build installs all dependencies, runs frontend/backend checks and
 builds assets; runtime uses non-root UID 10001. No host paths, mounts or secrets
 are required. Official pinned Node/Python images supply all needed system libraries;
-no additional OS packages are necessary. Deployment is intended for a local trusted
-machine. Do not expose this unauthenticated service publicly.
+no additional OS packages are necessary. The image binds to `0.0.0.0` and honors
+Render's injected `PORT` (falling back to 8000 locally). `render.yaml` declares a
+free Docker web service with `/api/health` as its health check. The service is
+unauthenticated; do not place sensitive traces in it.
+
+For a Vercel Hobby alternate frontend, import this same repository at its root,
+use `npm ci` and `npm run build`, and set the output directory to `frontend/dist`.
+Configure `/api/:path*` to rewrite to the primary Render service URL. Vercel is
+frontend-only and depends on Render for the FastAPI API, uploads, and sanitized
+report downloads.
+
+To run the release browser audit against an already deployed service, set
+`AGENTTRACE_BASE_URL=https://your-service.example` before `npm run e2e`. Without
+that variable the suite starts the local production server as before.
 
 An image can be exported with `docker save -o agenttrace.tar agenttrace:0.1.0`
 and loaded offline with `docker load -i agenttrace.tar`. Container runtime requires

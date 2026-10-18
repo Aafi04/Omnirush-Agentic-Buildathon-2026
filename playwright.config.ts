@@ -6,6 +6,8 @@ const python = process.platform === 'win32'
   ? path.join(root, '.venv', 'Scripts', 'python.exe')
   : path.join(root, '.venv', 'bin', 'python');
 const port = Number(process.env.AGENTTRACE_E2E_PORT ?? 4173);
+const baseURL = process.env.AGENTTRACE_BASE_URL ?? `http://127.0.0.1:${port}`;
+const isExternal = Boolean(process.env.AGENTTRACE_BASE_URL);
 
 export default defineConfig({
   testDir: './e2e',
@@ -18,7 +20,7 @@ export default defineConfig({
   reporter: process.env.CI ? [['html', { outputFolder: 'playwright-report', open: 'never' }], ['line']] : [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   outputDir: 'test-results',
   use: {
-    baseURL: `http://127.0.0.1:${port}`,
+    baseURL,
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -29,7 +31,7 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
-  webServer: {
+  ...(isExternal ? {} : { webServer: {
     command: `${process.platform === 'win32' ? 'npm.cmd' : 'npm'} run build && "${python}" -m uvicorn agenttrace.api:app --app-dir backend --host 127.0.0.1 --port ${port} --no-access-log`,
     cwd: root,
     url: `http://127.0.0.1:${port}/api/health`,
@@ -37,5 +39,5 @@ export default defineConfig({
     reuseExistingServer: false,
     stdout: 'pipe',
     stderr: 'pipe',
-  },
+  }}),
 });
