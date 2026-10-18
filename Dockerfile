@@ -22,5 +22,5 @@ RUN --network=none python -m pytest -q
 FROM backend AS runtime
 USER 10001:10001
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=3s CMD-SHELL python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.getenv(\"PORT\", \"8000\")}/api/health', timeout=2)"
+HEALTHCHECK --interval=30s --timeout=3s CMD-SHELL python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.getenv('PORT', '8000') + '/api/health', timeout=2)"
 CMD ["sh", "-c", "exec python -m uvicorn agenttrace.api:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000} --no-access-log"]
