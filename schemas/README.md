@@ -1,0 +1,40 @@
+# Event contract v1.0
+
+The source of truth is `backend/agenttrace/schemas.py`; `GET /api/schema`
+returns its generated JSON Schema, including recognized-tool argument constraints.
+Frontend event types are in `frontend/src/types.ts`.
+
+Each nonblank UTF-8 JSONL line is a single object. Source-line order is authoritative.
+Blank lines are ignored; CRLF is supported. BOM-prefixed files are rejected.
+
+Common required fields:
+- `schema_version`: exactly `"1.0"`.
+- `trace_id`, `event_id`, `call_id`: 1–128 characters, `[A-Za-z0-9_.:-]`.
+- `timestamp`: RFC3339 with timezone and optional 1–6 fractional digits.
+- `type`: `tool_call` or `tool_result`.
+
+Calls require `tool` (1–128 characters) and `arguments` (a JSON object).
+Results require `status` (`ok` / `error`) and `output` (any finite, valid-Unicode JSON value).
+Unknown top-level fields are rejected.
+
+Recognized calls validate these arguments strictly (no extra fields):
+- `process.exec`: nonempty `argv` of strings (max 256 arguments, 8192 characters each),
+  `cwd` (nonempty string), `shell` (boolean), optional `path_flavor` (`posix` default / `windows`).
+- `filesystem.write`: `path`, `cwd` (nonempty strings), `content` (string), optional `path_flavor`.
+- `http.request`: uppercase `method` (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS),
+  absolute HTTP(S) `url`, optional string-to-string `headers` and string `body`.
+
+Unknown tool names accept JSON-object arguments and receive a minimum policy decision
+of review. These schemas describe recorded data, not callable interfaces.
+
+Within a trace: event IDs and call IDs for calls must be unique; at most one result
+per call ID. Results link by call ID even if recorded before the call. Missing calls,
+missing results and timestamp regressions produce event-linked integrity warnings.
+Mixed trace IDs and duplicate IDs reject the entire import.
+
+Limits: 5 MiB raw UTF-8, 64 KiB per line (before trimming), 10,000 nonblank events,
+20 nested JSON containers. Duplicate JSON keys, nonfinite numbers, lone Unicode
+surrogates, invalid argument types and unsupported schema versions reject the import.
+Errors are bounded codes plus optional source line numbers, never payload echoes.
+
+See `samples/benign.jsonl` and `samples/risky.jsonl` for complete synthetic examples.

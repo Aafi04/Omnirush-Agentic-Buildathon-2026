@@ -1,0 +1,2 @@
+{"schema_version":"1.0","trace_id":"synthetic-benign","event_id":"benign-1","timestamp":"2026-10-18T10:00:00Z","type":"tool_call","call_id":"c1","tool":"process.exec","arguments":{"argv":["git","status"],"cwd":"/workspace","shell":false}}
+{"schema_version":"1.0","trace_id":"synthetic-benign","event_id":"benign-2","timestamp":"2026-10-18T10:00:01Z","type":"tool_result","call_id":"c1","status":"ok","output":{"exit_code":0,"stdout":"SYNTHETIC: working tree clean"}}
