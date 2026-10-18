@@ -1,0 +1,72 @@
+name: Rebuildability
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rebuild-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      DOCKER_BUILDKIT: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install locked dependencies
+        run: |
+          python --version
+          node --version
+          npm --version
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.lock
+          npm ci --no-audit --no-fund
+          .venv/bin/python -m pip check
+      - name: Full offline-capable test command
+        env:
+          PIP_NO_INDEX: '1'
+          npm_config_offline: 'true'
+        run: .venv/bin/python scripts/test.py
+      - name: Frontend production build
+        env:
+          npm_config_offline: 'true'
+        run: npm run build
+      - name: Built application HTTP smoke test
+        run: |
+          .venv/bin/python -m uvicorn agenttrace.api:app --app-dir backend --host 127.0.0.1 --port 8001 --no-access-log &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8001/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          .venv/bin/python scripts/smoke.py --port 8001
+      - name: Build Docker image (test layers have no network)
+        run: docker build --progress=plain -t agenttrace:ci .
+      - name: Smoke test read-only Docker image without external networking
+        run: |
+          docker run -d --name agenttrace-ci --network none --read-only --tmpfs /tmp agenttrace:ci
+          trap 'docker logs agenttrace-ci; docker rm -f agenttrace-ci' EXIT
+          for attempt in {1..30}; do
+            if docker exec agenttrace-ci python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=1)" > /dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker exec agenttrace-ci python scripts/smoke.py

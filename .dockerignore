@@ -6,4 +6,8 @@ node_modules
 **/__pycache__
 frontend/dist
 .env
+.env.*
+!.env.example
+*.pem
+*.key
 *.log

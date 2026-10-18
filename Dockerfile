@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend ./frontend
-RUN npm test && npm run build
+RUN --network=none npm test && npm run build
 
 FROM python:3.11.9-slim-bookworm AS backend
 WORKDIR /app
@@ -14,9 +14,10 @@ RUN pip install --no-cache-dir -r requirements.lock
 COPY pyproject.toml ./
 COPY backend ./backend
 COPY samples ./samples
+COPY scripts/smoke.py ./scripts/smoke.py
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 # Tests require no network or external service. Downloads happen above.
-RUN python -m pytest -q
+RUN --network=none python -m pytest -q
 
 FROM backend AS runtime
 USER 10001:10001

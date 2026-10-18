@@ -97,6 +97,26 @@ and loaded offline with `docker load -i agenttrace.tar`. Container runtime requi
 no outbound network access. Docker is not installed on the initial Windows build
 host, so container/Linux verification remains a documented verification gap.
 
+## Linux CI and rebuildability audit
+
+`.github/workflows/ci.yml` runs on `ubuntu-latest` for pushes to `main`, pull
+requests and manual dispatch. It installs the versions from `.python-version` and
+`.nvmrc`, installs Python/npm dependencies from their lockfiles, and executes the
+single full test command, production build and real-server smoke test. Test steps
+use pip no-index/npm offline mode; tests have no external-service dependency.
+
+The Docker build repeats frontend tests/build and backend tests in BuildKit
+`RUN --network=none` layers, after dependency installation. CI also runs the built
+image read-only with `--network none` and smoke-tests it from inside the container
+over loopback. Dependency installation/image pulls still require network access.
+These network-isolated container checks are evidence only once the workflow passes.
+
+Local Docker builds require BuildKit (standard in current Docker). The initial
+Windows audit could not execute Docker because it was not installed. See
+[docs/rebuildability-audit.md](docs/rebuildability-audit.md) for all eight checks,
+local verification, scope and remaining verification items. Do not infer a CI pass
+from the presence of the workflow file; inspect the run for the relevant commit.
+
 ## API and contract
 
 - `GET /api/health` → `{ "status": "ok", "version": "0.1.0" }`.
