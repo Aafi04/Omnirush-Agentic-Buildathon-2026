@@ -15,6 +15,7 @@ from .engine.policy import POLICIES
 from .engine.config import DEFAULT_CONFIG, EngineConfig
 from .importer import MAX_BYTES, ImportFailure, ingest, unique_object, check_depth
 from .schemas import ARGUMENT_SCHEMAS, EVENT_ADAPTER
+from .reports import public_analysis
 
 ROOT = Path(__file__).resolve().parents[2]
 app = FastAPI(title="AgentTrace", version="0.1.0")
@@ -80,7 +81,8 @@ async def analyze_trace(request: Request, policy: Literal["baseline", "strict"] 
         if size > MAX_BYTES:
             raise ImportFailure("input_too_large", status=413)
         raw.extend(chunk)
-    return analyze(ingest(bytes(raw)), POLICIES[policy], config)
+    # Detection consumes original data; only sanitized analysis crosses the API.
+    return public_analysis(analyze(ingest(bytes(raw)), POLICIES[policy], config))
 
 
 DIST = ROOT / "frontend" / "dist"

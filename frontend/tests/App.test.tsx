@@ -6,12 +6,14 @@ import { analyzeTrace } from '../src/api';
 import type { Analysis } from '../src/types';
 
 const data: Analysis = {
-  trace_id: 'synthetic-risky', source_sha256: 'abc123', policy: { policy_id: 'baseline', version: '2.0' },
+  sanitization: { version: '1.0', redactions: 3, notice: 'Synthetic sanitized test data.', reference_semantics: 'Opaque tokens preserve evidence references.' },
+  reports: { format_version: '1.0', json: '{"analyzed":"sanitized synthetic report"}\n', markdown: '# Sanitized synthetic report\n', report_sha256: 'd'.repeat(64) },
+  trace_id: 'synthetic-risky', source_sha256: 'abc123' + '0'.repeat(58), policy: { policy_id: 'baseline', version: '2.0' },
   events: [{ schema_version: '1.0', trace_id: 'synthetic-risky', event_id: 'e1', timestamp: '2026-10-18T10:00:00Z', call_id: 'c1', type: 'tool_call', tool: 'process.exec', arguments: { argv: ['sudo', 'id'], cwd: '/workspace', shell: false } },
     { schema_version: '1.0', trace_id: 'synthetic-risky', event_id: 'e2', timestamp: '2026-10-18T10:00:01Z', call_id: 'c1', type: 'tool_result', status: 'ok', output: '<script>window.hacked=true</script>' }],
-  findings: [{ rule_id: 'R002', rule_version: '2.0', severity: 'high', event_ids: ['e1'], field: 'arguments.argv[0]', evidence: 'sudo', message: 'Direct privileged executable invocation.', title: 'Direct privilege elevation', limitations: ['Recorded executable only'], evidence_items: [{ field: 'arguments.argv', value: '<img src=x onerror=alert(1)>', truncated: true }] }],
+  findings: [{ rule_id: 'R002', rule_version: '1.0', severity: 'high', event_ids: ['e1'], field: 'arguments.argv[0]', evidence: 'sudo', message: 'Direct privileged executable invocation.', title: 'Direct privilege elevation', limitations: ['Recorded executable only'], evidence_items: [{ field: 'arguments.argv', value: '<img src=x onerror=alert(1)>', truncated: true }] }],
   decisions: [{ event_id: 'e1', call_id: 'c1', decision: 'review', matches: [{ source: 'rule:R002', decision: 'review' }], coverage: 'limited', coverage_reason: 'Six bounded checks.', coverage_reasons: ['Six bounded checks.'], intervention_sources: ['rule:R002', 'unknown_action'], recorded_continuation_after_block: false, blocked_by_event_id: null }],
-  unknown_coverage: [{ event_id: 'e1', reasons: ['Unsupported argument shape'] }], rules: [{ rule_id: 'R002', version: '2.0' }], engine_config: {},
+  unknown_coverage: [{ event_id: 'e1', reasons: ['Unsupported argument shape'] }], rules: [{ rule_id: 'R002', rule_version: '1.0' }], engine_config: {},
   warnings: [], disclaimer: 'Recorded actions only.',
 };
 data.comparison = {
@@ -30,7 +32,7 @@ function mockFetch(response = data) {
   vi.stubGlobal('fetch', mock);
   return mock;
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('import-to-analysis workbench', () => {
   it('shows empty state and honest replay disclaimer', () => {
@@ -42,7 +44,7 @@ describe('import-to-analysis workbench', () => {
     const mock = mockFetch(); const user = userEvent.setup(); render(<App />);
     await user.click(screen.getByRole('button', { name: 'Risky sample' }));
     expect(await screen.findByRole('heading', { name: 'synthetic-risky' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: /R002 v2.0 · Direct privilege elevation/ })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /R002 v1.0 · Direct privilege elevation/ })).toBeVisible();
     expect(screen.getByText('rule:R002 → review')).toBeVisible();
     const timeline = screen.getByRole('region', { name: 'Event timeline' });
     await user.click(within(timeline).getByRole('button', { name: /Result/ }));
@@ -60,7 +62,8 @@ describe('import-to-analysis workbench', () => {
     const file = new File(['{"schema_version":"1.0"}'], 'trace.jsonl', { type: 'application/x-ndjson' });
     Object.defineProperty(file, 'arrayBuffer', { value: async () => new TextEncoder().encode('{"schema_version":"1.0"}').buffer });
     await user.upload(screen.getByLabelText('Import JSONL'), file);
-    expect(await screen.findByText('trace.jsonl')).toBeVisible();
+    expect(await screen.findByText('Imported JSONL')).toBeVisible();
+    expect(screen.queryByText('trace.jsonl')).not.toBeInTheDocument();
     expect(mock).toHaveBeenCalledWith('/api/analyze?policy=baseline', expect.objectContaining({ body: '{"schema_version":"1.0"}' }));
   });
   it('shows a bounded line-numbered error and no stale analysis', async () => {
@@ -84,7 +87,8 @@ describe('import-to-analysis workbench', () => {
   it('reports network failures', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network unavailable')));
     render(<App />); await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Check the backend connection');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Network unavailable');
   });
   it('formats non-JSON server errors safely', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('not JSON', { status: 500 })));
@@ -174,11 +178,158 @@ describe('import-to-analysis workbench', () => {
     expect(mock).toHaveBeenCalledTimes(2);
     expect(mock).toHaveBeenNthCalledWith(1, '/api/samples/forensic');
   });
-  it('keeps legacy fixtures inspectable without a misleading comparison', async () => {
+  it('keeps sanitized fixtures inspectable without a misleading comparison', async () => {
     const fixture = structuredClone(data); delete fixture.comparison; delete fixture.unknown_coverage;
     mockFetch(fixture); render(<App />); await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
     expect(await screen.findByText(/Legacy response: same-trace comparison is unavailable/)).toBeVisible();
     expect(screen.getByLabelText('Replay policy')).toBeDisabled();
     expect(screen.getByLabelText('Recorded event payload')).toHaveTextContent('sudo');
+  });
+
+  it('disables downloads before analysis and guides a synthetic demo with a compact loaded intro', async () => {
+    const mock = mockFetch(); render(<App />);
+    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download Markdown' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Explore demo' }));
+    expect(await screen.findByRole('heading', { name: 'Explore demo · synthetic forensic recording' })).toBeVisible();
+    expect(mock).toHaveBeenNthCalledWith(1, '/api/samples/forensic');
+    expect(screen.getByRole('heading', { level: 1 }).closest('section')).toHaveClass('intro-compact');
+    expect(screen.getByRole('navigation', { name: 'Analysis sections' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Heuristic redaction · 3 redactions' })).toBeVisible();
+    expect(screen.getByText(/exact input bytes, before sanitization/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeEnabled();
+  });
+
+  it('shows a loading status and disables imports and exports until analysis completes', async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.includes('/samples/')
+      ? Promise.resolve(new Response(JSON.stringify({ jsonl: '{}' })))
+      : new Promise<Response>(resolve => { finish = resolve; })));
+    render(<App />); await userEvent.click(screen.getByRole('button', { name: 'Explore demo' }));
+    expect(await screen.findByText('Validating trace and evaluating recorded actions…')).toBeVisible();
+    expect(screen.getByLabelText('Import JSONL')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeDisabled();
+    finish(new Response(JSON.stringify(data)));
+    await screen.findByRole('region', { name: 'Event timeline' });
+    expect(screen.queryByText('Validating trace and evaluating recorded actions…')).not.toBeInTheDocument();
+  });
+
+  it.each([undefined, { version: '0.9' }])('rejects raw legacy metadata without leaking any response fields (%s)', async sanitization => {
+    mockFetch({ ...data, sanitization, trace_id: 'RAW_SECRET_TRACE', source_sha256: 'RAW_SECRET_HASH', events: [{ arguments: 'RAW_SECRET_ARGUMENT' }] } as unknown as Analysis);
+    render(<App />); await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Backend response is not sanitized; restart or update the backend.');
+    expect(document.body).not.toHaveTextContent('RAW_SECRET');
+    expect(screen.queryByRole('region', { name: 'Event timeline' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeDisabled();
+  });
+
+  it('does not echo arbitrary backend error codes or unbounded line metadata', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: { code: 'RAW_SECRET_CODE', line: 'RAW_SECRET_LINE' } }), { status: 422 })));
+    render(<App />); await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
+    expect(await screen.findByRole('alert')).not.toHaveTextContent('RAW_SECRET');
+    await expect(analyzeTrace('{}', 'baseline')).rejects.toThrow('Analysis failed (HTTP 422).');
+  });
+
+  it('keeps imported names and File API exception details out of the page', async () => {
+    mockFetch(); render(<App />);
+    const file = new File(['{}'], 'SECRET-filename.jsonl');
+    Object.defineProperty(file, 'arrayBuffer', { value: async () => { throw new Error('SECRET-file-read'); } });
+    await userEvent.upload(screen.getByLabelText('Import JSONL'), file);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not read file as UTF-8 JSONL.');
+    expect(document.body).not.toHaveTextContent('SECRET');
+  });
+
+  it('preserves exact UTF-8 input text including a BOM for source hashing', async () => {
+    const mock = mockFetch(); render(<App />);
+    const raw = '\uFEFF{"recorded":true}\r\n';
+    const file = new File([raw], 'SECRET-input.jsonl');
+    Object.defineProperty(file, 'arrayBuffer', { value: async () => new TextEncoder().encode(raw).buffer });
+    await userEvent.upload(screen.getByLabelText('Import JSONL'), file);
+    expect(await screen.findByText('Imported JSONL')).toBeVisible();
+    expect(document.body).not.toHaveTextContent('SECRET-input');
+    expect(mock).toHaveBeenCalledWith('/api/analyze?policy=baseline', expect.objectContaining({ body: raw }));
+  });
+
+  it('navigates evidence with opaque sanitized event, trace, and call identifiers', async () => {
+    const fixture = structuredClone(data);
+    const opaque = '[REDACTED:secret-0001]';
+    fixture.trace_id = '[REDACTED:secret-0002]';
+    fixture.events[0].event_id = opaque;
+    fixture.events.forEach(event => { event.call_id = '[REDACTED:secret-0003]'; });
+    fixture.findings[0].event_ids = [opaque];
+    mockFetch(fixture); render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
+    const findings = await screen.findByRole('region', { name: 'Findings & evidence' });
+    await userEvent.click(within(findings).getByRole('button', { name: opaque }));
+    await waitFor(() => expect(document.getElementById(`event-${opaque}`)).toHaveFocus());
+    expect(screen.getByRole('region', { name: 'Event evidence' })).toHaveTextContent('[REDACTED:secret-0003]');
+  });
+
+  it('downloads exactly backend report bytes with fixed hash filenames and deferred URL cleanup', async () => {
+    const create = vi.fn((_blob: Blob) => 'blob:synthetic-report'); const revoke = vi.fn();
+    vi.stubGlobal('URL', class extends URL { static createObjectURL = create; static revokeObjectURL = revoke; });
+    const clicks: { filename: string; connected: boolean; revoked: number }[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      clicks.push({ filename: this.download, connected: this.isConnected, revoked: revoke.mock.calls.length });
+    });
+    const fixture = structuredClone(data); fixture.trace_id = 'SECRET-trace-id';
+    mockFetch(fixture); render(<App />);
+    const file = new File(['{}'], 'SECRET-filename.jsonl');
+    Object.defineProperty(file, 'arrayBuffer', { value: async () => new TextEncoder().encode('{}').buffer });
+    await userEvent.upload(screen.getByLabelText('Import JSONL'), file);
+    await screen.findByRole('region', { name: 'Event timeline' });
+    for (const [index, format, type, extension] of [[0, 'JSON', 'application/json;charset=utf-8', 'json'], [1, 'Markdown', 'text/markdown;charset=utf-8', 'md']] as const) {
+      await userEvent.click(screen.getByRole('button', { name: `Download ${format}` }));
+      const blob = create.mock.calls[index][0] as Blob;
+      expect(blob.type).toBe(type);
+      const text = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blob); });
+      expect(text).toBe(format === 'JSON' ? data.reports.json : data.reports.markdown);
+      expect(text).not.toContain('arguments');
+      expect(clicks[index]).toEqual({ filename: `agenttrace-report-abc123000000.${extension}`, connected: true, revoked: index });
+      expect(screen.getByLabelText('Report download status')).toHaveTextContent(`${format} report download requested.`);
+      await waitFor(() => expect(revoke).toHaveBeenCalledTimes(index + 1));
+      expect(document.querySelector('a[download]')).toBeNull();
+    }
+  });
+
+  it('reports export failure separately, retains evidence and cleans up the URL', async () => {
+    const revoke = vi.fn();
+    vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:failed-export'); static revokeObjectURL = revoke; });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { throw new Error('SECRET-export-error'); });
+    mockFetch(); render(<App />); await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
+    await screen.findByRole('region', { name: 'Event timeline' });
+    await userEvent.click(screen.getByRole('button', { name: 'Download JSON' }));
+    expect(screen.getByLabelText('Report download status')).toHaveTextContent('Report download failed. Try again; your analysis is still available.');
+    expect(screen.getByRole('region', { name: 'Event timeline' })).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent('SECRET-export-error');
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:failed-export'));
+  });
+
+  it('safely disables exports for a sanitized response without analyzed reports', async () => {
+    const fixture = { ...data, reports: undefined } as unknown as Analysis;
+    mockFetch(fixture); render(<App />); await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
+    expect(await screen.findByText('Analyzed reports are unavailable for this response.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Download JSON' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download Markdown' })).toBeDisabled();
+  });
+
+  it('keeps comparison ahead of reports and makes redaction details keyboard-focusable', async () => {
+    mockFetch(); render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Explore demo' }));
+    const comparison = await screen.findByRole('region', { name: 'baseline summary' });
+    const reports = screen.getByRole('region', { name: 'Sanitized analysis reports' });
+    expect(comparison.compareDocumentPosition(reports) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const summary = screen.getByText('Redaction scope and evidence references');
+    const reportLink = within(screen.getByRole('navigation', { name: 'Analysis sections' })).getByRole('link', { name: 'Reports' });
+    reportLink.focus();
+    await userEvent.tab();
+    expect(summary).toHaveFocus();
+    // JSDOM does not implement native summary keyboard activation; real-browser
+    // activation remains in the explicitly unverified manual audit checklist.
+    await userEvent.click(summary);
+    expect(summary.closest('details')).toHaveAttribute('open');
+    expect(screen.getByText('Synthetic sanitized test data.')).toBeVisible();
+    expect(reportLink).toHaveAttribute('href', '#reports');
   });
 });

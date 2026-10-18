@@ -9,8 +9,8 @@ actual source `event_ids` and up to eight representative `evidence_items` with r
 field paths, values capped at 256 characters and explicit truncation flags. At most
 one finding per rule per action is emitted; it is not an inventory of every match.
 R004 additionally records excerpt start/end offsets and its exact matched literal.
-The original bounded events and source SHA-256 remain in the response so truncated
-excerpts can be checked. No command, URL, path or script is executed or resolved
+Sanitized bounded events and original source SHA-256 remain in the response so
+excerpts can be correlated with the authorized original file. No command, URL, path or script is executed or resolved
 against a real host. UI payload excerpts are capped at 8192 code units.
 
 ## Rule signatures
@@ -188,5 +188,8 @@ Importer limits remain 5 MiB / 10,000 events / 64 KiB per line / nesting depth 2
 Malformed recognized-tool arguments reject the entire trace with line-numbered
 errors; there is no partial analysis. Findings are bounded per action; UI collections
 paginate at 100. Source data and bounded rich analysis are returned locally, not
-persisted. Automatic secret redaction, general program semantics, real execution,
-prediction of subsequent agent behavior and report export are not implemented.
+persisted automatically. Milestone 3 adds heuristic redaction and deterministic
+JSON/Markdown exports after detection, without changing these rule semantics. See
+`reports-and-redaction.md` for opaque references, source offsets and privacy limits.
+General program semantics, real execution and prediction of subsequent behavior
+remain out of scope.

@@ -1,8 +1,9 @@
 # AgentTrace
 
-An offline-capable flight recorder for recorded AI-agent tool activity. Milestone 2
+An offline-capable flight recorder for recorded AI-agent tool activity. Milestone 3
 imports JSONL, reconstructs a timeline, applies **six deterministic detectors**, and
-compares baseline/strict classifications side by side on the **same trace**.
+compares baseline/strict classifications side by side on the **same trace**, with
+centralized best-effort redaction and deterministic JSON/Markdown evidence reports.
 
 **Replay never executes an action and never predicts subsequent agent behavior.**
 Every recorded call is evaluated independently, including calls recorded after a
@@ -53,7 +54,24 @@ Open **Six-rule sample** for all six detectors: baseline has 1 allow / 7 review 
 and two unknown-action interventions overlap on the shell pipeline. Changing the
 replay selector changes the timeline locally, without reimporting or executing data.
 Findings, policy interventions and unknown coverage have separate evidence links.
-Import your own UTF-8 `.jsonl` file to inspect its payloads and linked call/results.
+Import your own UTF-8 `.jsonl` file to inspect sanitized payloads and linked calls/results.
+
+### Guided judge workflow
+
+1. Choose **Explore demo** to load the clearly synthetic forensic recording.
+2. Compare baseline's 1 allow / 7 review with strict's 1 allow / 7 block. Categories
+   overlap: R005 is a rule finding **and** an unknown shell-coverage intervention.
+3. Follow an action's difference link to its timeline entry and field evidence.
+   Change **Replay policy** locally; later recorded continuation is not a prediction.
+4. Inspect the heuristic-redaction notice and sanitized R004 evidence. A detected
+   sensitive literal is represented by an opaque reference, not displayed verbatim.
+5. Use **Reports** in section navigation, then **Download JSON** or **Download
+   Markdown**. Downloads include analyzed conclusions/evidence but exclude raw event
+   arguments/output. Review the reports before sharing: redaction can miss secrets.
+
+The loaded header is compact; section navigation, separate findings/interventions/
+unknown panels, focus styles and paginated collections support investigation without
+a dashboard redesign. Raw imported filenames are deliberately not displayed.
 
 For frontend development, run the API as above and `npm run dev` in another terminal.
 Vite serves http://localhost:5173 and proxies `/api` to the loopback backend.
@@ -77,10 +95,11 @@ Individual checks: `python -m pytest -q`, `npm test`, `npm run typecheck`.
 Production build: `npm run build`. HTTP smoke test against a running server:
 `python scripts/smoke.py` (or `python scripts/smoke.py --port 8001`).
 
-Tests cover bounded import rejection, strict arguments, IDs and trace consistency,
-R002 positive/negative signatures, policy precedence and unknown minimum,
-integrity warnings, safe content handling, sample/file UI import, error states,
-evidence navigation, policy switching, and displaying hostile HTML as text.
+Tests cover bounded import rejection, all six signatures and ambiguity boundaries,
+policy precedence and exact goldens, sanitized field/identifier correlation, report
+determinism/digests/escaping, header/private-key/credential redaction, sample/file
+UI import, errors, keyboard evidence navigation, local policy switching, pagination,
+and backend-report-only download bytes, filenames and object-URL cleanup.
 Frontend fetches are mocked; backend tests exercise the real in-process API.
 The separate smoke test exercises a real TCP server and its built assets.
 
@@ -100,7 +119,8 @@ machine. Do not expose this unauthenticated service publicly.
 An image can be exported with `docker save -o agenttrace.tar agenttrace:0.1.0`
 and loaded offline with `docker load -i agenttrace.tar`. Container runtime requires
 no outbound network access. Docker is not installed on the initial Windows build
-host, so container/Linux verification remains a documented verification gap.
+host; Linux/Docker checks run in GitHub Actions. Inspect the run for your commit;
+local Windows checks alone do not establish container success.
 
 ## Linux CI and rebuildability audit
 
@@ -134,7 +154,12 @@ Successful analysis includes source SHA-256, policy ID/version/configuration,
 source-ordered events, integrity warnings, findings and per-call decisions. It also
 includes both runs in `comparison`, counts, difference explanations, intervention
 categories, `unknown_coverage`, rule metadata, and the effective `engine_config`.
-Findings include actual event IDs, rule/version, matched field and bounded evidence.
+All public analysis fields cross the same backend sanitization boundary. Additional
+`sanitization` metadata describes version/count/limitations; `reports` contains
+canonical JSON text, Markdown text, format version and the JSON report SHA-256.
+Findings preserve event references, rule/version and matched field/offset evidence.
+Sensitive IDs use unique namespace aliases consistently across references; evidence
+values and configuration may be redacted. Internal detection still uses original data.
 Invalid inputs return HTTP 422 with `{ "error": { "code": "...", "line": 2 } }`;
 the line is null for whole-file errors. Files above 5 MiB return 413. No partial
 analysis is returned. See [schemas/README.md](schemas/README.md) for limits and fields.
@@ -165,29 +190,47 @@ Omitted fields use documented defaults; the response snapshots effective setting
 The UI uses defaults; configuration editing is API-only. Invalid configuration is
 rejected without echoing its contents. Configuration never changes event data.
 
+### Report and redaction semantics
+
+`source_sha256` hashes the **exact original UTF-8 input bytes**, including blank
+lines and line endings. `reports.report_sha256` hashes the **exact UTF-8 bytes of
+`reports.json`**, including its one final LF; the digest is outside that report
+document. Reports have no generation timestamp, are invariant to the selected
+baseline/strict UI policy, and include both full policy runs. Canonical JSON sorts
+object keys, preserves source array order, uses compact separators and ASCII
+escaping. It is not a claim of RFC 8785 interoperability or a digital signature.
+
+See [docs/reports-and-redaction.md](docs/reports-and-redaction.md) for report
+contents, escaping, opaque references, fingerprint privacy and heuristic limits.
+
 ### Safety and limitations
 
 - Importers never launch commands, fetch recorded URLs, write recorded paths or
   execute trace-provided code. Paths are data and never mapped onto the host.
 - Traces live only in request/browser memory. No local storage, database, automatic
-  persistence or payload logs. Source payloads are returned to the local UI.
-- Payloads render as React text, never HTML. **Automatic secret redaction is not
-  implemented**: do not import secrets on a shared screen, and do not share API
-  responses without checking them. All checked-in examples are synthetic.
+  persistence or payload logs. Raw data is used for detection in request memory;
+  sanitized copies are returned to the local UI. Explicit report downloads persist
+  only the sanitized investigation document at the user's request.
+- Payloads render as React text, never HTML. Centralized heuristic redaction covers
+  common credential fields, auth/cookie headers, key blocks and synthetic markers.
+  **It is not perfect secrecy**: do not import material you cannot safely inspect,
+  and review every export before sharing. All checked-in examples are synthetic.
 - Timeline and investigation collections paginate at 100 entries. Payload excerpts
   stop at 8,192 code units; evidence excerpts stop at 256 characters with explicit
-  truncation labels. Full source events remain available in the bounded API response.
+  truncation labels. Sanitized events remain available in the bounded API response;
+  reports contain an event metadata index, not raw payload copies.
   Warnings/findings remain event-linked; timestamps do not reorder events.
 - Responsive CSS, labeled controls, focus styles and keyboard navigation are
   included. Automated DOM interaction tests pass; real-browser visual/accessibility
   audits and full browser end-to-end tests remain outstanding.
-- Remaining planned work: custom policy/config editors, report export/redaction,
+- Remaining planned work: custom policy/config editors,
   broader real-world trace coverage and full browser/accessibility auditing.
   No authentication, charts, live agents or hosted AI are implemented.
 
 ## Layout
 
 `backend/agenttrace/`: typed schema, importer, pure engine, FastAPI routes.
+`backend/agenttrace/redaction.py` and `reports.py`: centralized public boundary and exports.
 `backend/tests/`: Pytest API/engine/boundary tests.
 `frontend/src/`: React workbench, typed API client, Tailwind plus responsive styling.
 `frontend/tests/`: Vitest/Testing Library interaction tests.

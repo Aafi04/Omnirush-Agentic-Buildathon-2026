@@ -2,6 +2,8 @@
 import argparse
 import json
 import re
+import hashlib
+import html as html_tools
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -48,6 +50,17 @@ assert [item["event_id"] for item in result["unknown_coverage"]] == ["forensic-5
 last = comparison["strict"]["decisions"][-1]
 assert last["decision"] == "allow" and last["recorded_continuation_after_block"] is True
 assert last["blocked_by_event_id"] == "forensic-1"
+assert result["sanitization"]["version"] == "1.0"
+reports = result["reports"]
+assert reports["report_sha256"] == hashlib.sha256(reports["json"].encode("utf-8")).hexdigest()
+document = json.loads(reports["json"])
+assert document["findings"] == result["findings"]
+assert document["comparison"] == result["comparison"]
+assert all("arguments" not in event and "output" not in event for event in document["event_index"])
+assert "AGENTTRACE_SYNTHETIC_SECRET_001" not in json.dumps(result)
+assert "AGENTTRACE_SYNTHETIC_SECRET_001" not in html_tools.unescape(reports["markdown"])
+repeated = json.loads(read("/api/analyze?policy=baseline", sample["jsonl"].encode()))
+assert repeated["reports"] == reports
 override = {"workspace_roots": {"posix": ["/workspace", "/outside"], "windows": ["C:/workspace"]}}
 configured = json.loads(read("/api/analyze", sample["jsonl"].encode(), {"X-AgentTrace-Config": json.dumps(override)}))
 assert "R006" not in [finding["rule_id"] for finding in configured["findings"]]
@@ -57,4 +70,4 @@ try:
 except HTTPError as error:
     assert error.code == 422
     assert json.loads(error.read())["error"]["code"] == "invalid_event"
-print("HTTP smoke passed: health, HTML/assets, all samples, six rules, same-trace comparison, configuration, evidence, continuation, rejected import.")
+print("HTTP smoke passed: health, HTML/assets, samples, six rules, comparison, configuration, sanitized evidence, canonical exports, fingerprints, determinism, rejected import.")

@@ -47,3 +47,11 @@ See `samples/benign.jsonl`, `samples/risky.jsonl` and `samples/forensic.jsonl` f
 synthetic examples. Event version remains 1.0. Analysis adds comparison/coverage
 fields without removing the original selected-policy fields. See
 `docs/rules-and-replay.md` for rule versions, API configuration and replay semantics.
+
+Milestone 3 sanitizes public analysis after original-data detection. Sensitive
+identifiers become unique opaque aliases; all finding/warning/decision references
+use the same aliases. `sanitization.version` is `1.0`; clients must not display an
+unmarked legacy response. `reports.format_version` is `1.0`, with server-generated
+JSON/Markdown strings and JSON report digest. Report schema is distinct from event
+schema: its ordered `event_index` excludes arguments/output. See
+`docs/reports-and-redaction.md` for canonical serialization and privacy limits.

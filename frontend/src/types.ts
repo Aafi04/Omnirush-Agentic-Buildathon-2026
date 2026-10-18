@@ -26,6 +26,8 @@ export interface PolicyRun {
   interventions: { rule_triggered: number; unknown_action: number };
 }
 export interface Analysis {
+  sanitization: { version: '1.0'; redactions: number; notice: string; reference_semantics: string };
+  reports: { format_version: '1.0'; json: string; markdown: string; report_sha256: string };
   trace_id: string; source_sha256: string;
   policy: { policy_id: string; version: string };
   events: TraceEvent[]; findings: Finding[]; decisions: PolicyDecision[];
