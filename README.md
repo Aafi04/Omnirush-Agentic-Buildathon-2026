@@ -149,6 +149,18 @@ To run the release browser audit against an already deployed service, set
 `AGENTTRACE_BASE_URL=https://your-service.example` before `npm run e2e`. Without
 that variable the suite starts the local production server as before.
 
+### Public deployments
+
+- Primary Render service: <https://agenttrace-public.onrender.com>
+- Alternate Vercel frontend: <https://agenttrace-frontend.vercel.app>
+
+Both public URLs use the same repository and the same FastAPI contracts. Render
+is the primary full-stack service; Vercel serves only the React build and rewrites
+`/api/*` to Render. The free Render instance may sleep when idle, so the first
+request after inactivity can take 50 seconds or more. Neither deployment provides
+authentication or durable trace storage; use synthetic or otherwise safe-to-share
+traces only.
+
 An image can be exported with `docker save -o agenttrace.tar agenttrace:0.1.0`
 and loaded offline with `docker load -i agenttrace.tar`. Container runtime requires
 no outbound network access. Docker is not installed on the initial Windows build
