@@ -50,6 +50,13 @@ class ProcessArguments(StrictModel):
     shell: bool
     path_flavor: Literal["posix", "windows"] = "posix"
 
+    @field_validator("argv", "cwd")
+    @classmethod
+    def no_null_bytes(cls, value):
+        if any("\0" in item for item in (value if isinstance(value, list) else [value])):
+            raise ValueError("NUL is not a valid process argument")
+        return value
+
 
 class WriteArguments(StrictModel):
     path: Annotated[str, Field(min_length=1, max_length=4096)]
@@ -57,11 +64,18 @@ class WriteArguments(StrictModel):
     content: str
     path_flavor: Literal["posix", "windows"] = "posix"
 
+    @field_validator("path", "cwd")
+    @classmethod
+    def no_null_bytes(cls, value):
+        if "\0" in value:
+            raise ValueError("NUL is not a valid path")
+        return value
+
 
 class HttpArguments(StrictModel):
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
     url: Annotated[str, Field(min_length=1, max_length=8192)]
-    headers: dict[str, str] = Field(default_factory=dict)
+    headers: dict[Annotated[str, Field(min_length=1, max_length=128, pattern=r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")], Annotated[str, Field(max_length=8192)]] = Field(default_factory=dict, max_length=64)
     body: str = ""
 
     @field_validator("url")
@@ -69,8 +83,18 @@ class HttpArguments(StrictModel):
     def valid_http_url(cls, value: str) -> str:
         from urllib.parse import urlsplit
         parts = urlsplit(value)
-        if parts.scheme not in {"http", "https"} or not parts.hostname:
+        if parts.scheme not in {"http", "https"} or not parts.hostname or any(ord(c) < 33 or ord(c) == 127 for c in value):
             raise ValueError("absolute HTTP URL required")
+        port = parts.port
+        if parts.netloc.endswith(":") or (port is not None and not 1 <= port <= 65535):
+            raise ValueError("valid HTTP port required")
+        return value
+
+    @field_validator("headers")
+    @classmethod
+    def valid_headers(cls, value):
+        if any(any(c in text for c in "\r\n\0") for text in value.values()):
+            raise ValueError("header control characters are not valid")
         return value
 
 

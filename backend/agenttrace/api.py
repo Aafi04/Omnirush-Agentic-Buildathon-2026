@@ -1,14 +1,19 @@
 """Local-only analysis API. No trace payload logging or disk persistence."""
 from pathlib import Path
 from typing import Literal
+import json
+
+from pydantic import ValidationError
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .engine.analysis import analyze
 from .engine.policy import POLICIES
-from .importer import MAX_BYTES, ImportFailure, ingest
+from .engine.config import DEFAULT_CONFIG, EngineConfig
+from .importer import MAX_BYTES, ImportFailure, ingest, unique_object, check_depth
 from .schemas import ARGUMENT_SCHEMAS, EVENT_ADAPTER
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +23,11 @@ app = FastAPI(title="AgentTrace", version="0.1.0")
 @app.exception_handler(ImportFailure)
 async def import_failure(request: Request, exc: ImportFailure):
     return JSONResponse(status_code=exc.status, content={"error": {"code": exc.code, "line": exc.line}})
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={"error": {"code": "invalid_request", "line": None}})
 
 
 @app.middleware("http")
@@ -35,7 +45,7 @@ def health():
 
 
 @app.get("/api/samples/{name}")
-def sample(name: Literal["benign", "risky"]):
+def sample(name: Literal["benign", "risky", "forensic"]):
     return {"synthetic": True, "name": name, "jsonl": (ROOT / "samples" / f"{name}.jsonl").read_text(encoding="utf-8")}
 
 
@@ -53,6 +63,16 @@ def schema():
 
 @app.post("/api/analyze")
 async def analyze_trace(request: Request, policy: Literal["baseline", "strict"] = "baseline"):
+    config = DEFAULT_CONFIG
+    supplied_config = request.headers.get("x-agenttrace-config")
+    if supplied_config is not None:
+        if len(supplied_config.encode("utf-8")) > 8192:
+            raise ImportFailure("config_too_large", status=413)
+        try:
+            check_depth(supplied_config, 0)
+            config = EngineConfig.model_validate(json.loads(supplied_config, object_pairs_hook=unique_object))
+        except (ValueError, ValidationError, RecursionError):
+            raise ImportFailure("invalid_engine_config") from None
     size = 0
     raw = bytearray()
     async for chunk in request.stream():
@@ -60,7 +80,7 @@ async def analyze_trace(request: Request, policy: Literal["baseline", "strict"] 
         if size > MAX_BYTES:
             raise ImportFailure("input_too_large", status=413)
         raw.extend(chunk)
-    return analyze(ingest(bytes(raw)), POLICIES[policy])
+    return analyze(ingest(bytes(raw)), POLICIES[policy], config)
 
 
 DIST = ROOT / "frontend" / "dist"

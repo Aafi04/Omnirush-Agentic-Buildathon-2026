@@ -1,0 +1,7 @@
+{
+  "findings": [],
+  "baseline": {"version":"2.0","counts":{"allow":1,"review":0,"block":0},"interventions":{"rule_triggered":0,"unknown_action":0},"decisions":[["benign-1","allow",[],"limited",false,null]]},
+  "strict": {"version":"2.0","counts":{"allow":1,"review":0,"block":0},"interventions":{"rule_triggered":0,"unknown_action":0},"decisions":[["benign-1","allow",[],"limited",false,null]]},
+  "differences": [],
+  "unknown_event_ids": []
+}

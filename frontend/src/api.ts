@@ -13,7 +13,7 @@ export async function analyzeTrace(raw: string, policy: string): Promise<Analysi
   return response.json();
 }
 
-export async function loadSample(name: 'benign' | 'risky'): Promise<string> {
+export async function loadSample(name: 'benign' | 'risky' | 'forensic'): Promise<string> {
   const response = await fetch(`/api/samples/${name}`);
   if (!response.ok) throw new Error('Could not load sample. Is the backend running?');
   return (await response.json()).jsonl;

@@ -11,8 +11,8 @@ args = parser.parse_args()
 base = f"http://127.0.0.1:{args.port}"
 
 
-def read(path, data=None):
-    with urlopen(Request(base + path, data=data), timeout=5) as response:
+def read(path, data=None, headers=None):
+    with urlopen(Request(base + path, data=data, headers=headers or {}), timeout=5) as response:
         assert response.status == 200
         return response.read()
 
@@ -35,10 +35,26 @@ for sample_name, policy, expected in [
     assert [item["decision"] for item in result["decisions"]] == expected
     if sample_name == "risky":
         assert result["findings"][0]["event_ids"] == ["risky-1"]
+sample = json.loads(read("/api/samples/forensic"))
+assert sample["synthetic"] is True
+result = json.loads(read("/api/analyze?policy=strict", sample["jsonl"].encode()))
+assert [finding["rule_id"] for finding in result["findings"]] == [f"R{i:03}" for i in range(1, 7)]
+comparison = result["comparison"]
+assert comparison["baseline"]["counts"] == {"allow": 1, "review": 7, "block": 0}
+assert comparison["strict"]["counts"] == {"allow": 1, "review": 0, "block": 7}
+assert comparison["strict"]["interventions"] == {"rule_triggered": 6, "unknown_action": 2}
+assert len(comparison["differences"]) == 7
+assert [item["event_id"] for item in result["unknown_coverage"]] == ["forensic-5", "forensic-7"]
+last = comparison["strict"]["decisions"][-1]
+assert last["decision"] == "allow" and last["recorded_continuation_after_block"] is True
+assert last["blocked_by_event_id"] == "forensic-1"
+override = {"workspace_roots": {"posix": ["/workspace", "/outside"], "windows": ["C:/workspace"]}}
+configured = json.loads(read("/api/analyze", sample["jsonl"].encode(), {"X-AgentTrace-Config": json.dumps(override)}))
+assert "R006" not in [finding["rule_id"] for finding in configured["findings"]]
 try:
     read("/api/analyze", b"not-json")
     raise AssertionError("invalid import accepted")
 except HTTPError as error:
     assert error.code == 422
     assert json.loads(error.read())["error"]["code"] == "invalid_event"
-print("HTTP smoke passed: health, HTML/assets, benign/risky replay, evidence, rejected import.")
+print("HTTP smoke passed: health, HTML/assets, all samples, six rules, same-trace comparison, configuration, evidence, continuation, rejected import.")

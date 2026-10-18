@@ -1,8 +1,8 @@
 # AgentTrace
 
-An offline-capable flight recorder for recorded AI-agent tool activity. This first
-vertical slice imports JSONL, reconstructs a timeline, detects **direct privileged
-execution (R002)**, and classifies recorded calls under two deterministic policies.
+An offline-capable flight recorder for recorded AI-agent tool activity. Milestone 2
+imports JSONL, reconstructs a timeline, applies **six deterministic detectors**, and
+compares baseline/strict classifications side by side on the **same trace**.
 
 **Replay never executes an action and never predicts subsequent agent behavior.**
 Every recorded call is evaluated independently, including calls recorded after a
@@ -48,6 +48,11 @@ Load **Benign sample** (0 findings, one allow decision), or **Risky sample**
 (R002 evidence at `risky-1`; review under baseline, block under strict).
 The risky sample also includes an unknown call at `risky-3`: review under baseline,
 block under strict. Both samples are explicitly synthetic; nothing was executed.
+Open **Six-rule sample** for all six detectors: baseline has 1 allow / 7 review /
+0 block; strict has 1 allow / 0 review / 7 block. Six rule-triggered interventions
+and two unknown-action interventions overlap on the shell pipeline. Changing the
+replay selector changes the timeline locally, without reimporting or executing data.
+Findings, policy interventions and unknown coverage have separate evidence links.
 Import your own UTF-8 `.jsonl` file to inspect its payloads and linked call/results.
 
 For frontend development, run the API as above and `npm run dev` in another terminal.
@@ -121,12 +126,14 @@ from the presence of the workflow file; inspect the run for the relevant commit.
 
 - `GET /api/health` → `{ "status": "ok", "version": "0.1.0" }`.
 - `GET /api/schema` → versioned event JSON Schema, including known-tool constraints.
-- `GET /api/samples/benign` or `/risky` → labeled synthetic JSONL.
+- `GET /api/samples/benign`, `/risky` or `/forensic` → labeled synthetic JSONL.
 - `POST /api/analyze?policy=baseline` (or `strict`): raw UTF-8 JSONL body,
   preferably `Content-Type: application/x-ndjson`.
 
 Successful analysis includes source SHA-256, policy ID/version/configuration,
-source-ordered events, integrity warnings, findings and per-call decisions.
+source-ordered events, integrity warnings, findings and per-call decisions. It also
+includes both runs in `comparison`, counts, difference explanations, intervention
+categories, `unknown_coverage`, rule metadata, and the effective `engine_config`.
 Findings include actual event IDs, rule/version, matched field and bounded evidence.
 Invalid inputs return HTTP 422 with `{ "error": { "code": "...", "line": 2 } }`;
 the line is null for whole-file errors. Files above 5 MiB return 413. No partial
@@ -134,26 +141,29 @@ analysis is returned. See [schemas/README.md](schemas/README.md) for limits and 
 
 ### Detection and policy semantics
 
-**R002 v1.0**: for `process.exec` with `shell:false`, normalize only the executable
-basename in `arguments.argv[0]` using declared path flavor. Match exactly `sudo`,
-`su`, or `doas`. POSIX matching is case-sensitive; Windows matching is case-insensitive.
-Evidence is that field, not a claim of successful privilege elevation. Shell content,
-aliases, symlinks, executable identity, indirect wrappers, `.exe` variants and
-privileges of the actual process are not resolved.
+All rule versions are `1.0`; all six have high severity. R002 retains its original
+direct-invocation semantics. The engine adds R001 protected deletion, R003 credential
+writes, R004 external sensitive-literal requests, R005 download-to-shell pipelines,
+and R006 outside-workspace writes. See [docs/rules-and-replay.md](docs/rules-and-replay.md)
+for exact signatures, field evidence, unknown coverage, normalization and limitations.
 
-Unknown tools, `shell:true`, and documented interpreter/wrapper basenames
-(`sh`, `bash`, `dash`, `zsh`, `cmd`, `cmd.exe`, `powershell`, `powershell.exe`,
-`pwsh`, `env`, `python`, `python3`, `node`) have unknown coverage. The wrapper list
-is deliberately finite, not exhaustive. Every other supported call still has
-**limited coverage**: only R002 is implemented. HTTP and filesystem calls are
-validated, but have no risk detectors in this slice.
+Both bundled policies are now **version 2.0**. Baseline reviews all rule matches and
+unknown actions; strict blocks them. Unmatched, resolved actions default to allow
+under limited coverage, not a safety guarantee. Precedence is **block > review >
+allow**, independent of rule order; unknown actions always have a minimum of review.
+Every recorded call is evaluated independently, including recorded continuation
+after a hypothetical block. Custom policy editing is not part of this milestone.
 
-Matching rule and tool decisions are combined by **block > review > allow**,
-independent of entry order. The default is used only when no rule/tool entry matches.
-Unknown-action policy is also applied, plus an unconditional minimum of review.
-Baseline: R002 review, unknown review, default allow. Strict: R002 block,
-unknown block, default allow. `engine/policy.py` contains a typed policy model;
-custom policies are not editable via the API/UI yet.
+Roots and exact allowed hosts are configurable per API request using an optional
+`X-AgentTrace-Config` JSON header (8 KiB maximum), e.g.:
+
+```json
+{"protected_roots":{"posix":["/etc","/home","/workspace"],"windows":["C:/Windows","C:/Users","C:/workspace"]},"workspace_roots":{"posix":["/workspace"],"windows":["C:/workspace"]},"allowed_hosts":["localhost","127.0.0.1","::1"]}
+```
+
+Omitted fields use documented defaults; the response snapshots effective settings.
+The UI uses defaults; configuration editing is API-only. Invalid configuration is
+rejected without echoing its contents. Configuration never changes event data.
 
 ### Safety and limitations
 
@@ -164,13 +174,15 @@ custom policies are not editable via the API/UI yet.
 - Payloads render as React text, never HTML. **Automatic secret redaction is not
   implemented**: do not import secrets on a shared screen, and do not share API
   responses without checking them. All checked-in examples are synthetic.
-- Timeline pagination caps rendered rows at 100 per page. Warnings/findings remain
-  event-linked; timestamps do not reorder events.
+- Timeline and investigation collections paginate at 100 entries. Payload excerpts
+  stop at 8,192 code units; evidence excerpts stop at 256 characters with explicit
+  truncation labels. Full source events remain available in the bounded API response.
+  Warnings/findings remain event-linked; timestamps do not reorder events.
 - Responsive CSS, labeled controls, focus styles and keyboard navigation are
   included. Automated DOM interaction tests pass; real-browser visual/accessibility
   audits and full browser end-to-end tests remain outstanding.
-- Remaining planned work: additional five detectors, policy editor/comparison,
-  report export/redaction, broader golden fixtures, Linux/container verification.
+- Remaining planned work: custom policy/config editors, report export/redaction,
+  broader real-world trace coverage and full browser/accessibility auditing.
   No authentication, charts, live agents or hosted AI are implemented.
 
 ## Layout

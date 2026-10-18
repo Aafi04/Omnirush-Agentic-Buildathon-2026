@@ -24,6 +24,12 @@ Recognized calls validate these arguments strictly (no extra fields):
 - `http.request`: uppercase `method` (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS),
   absolute HTTP(S) `url`, optional string-to-string `headers` and string `body`.
 
+NUL bytes in process arguments and paths are rejected. HTTP URLs cannot contain
+raw whitespace/control characters or invalid ports. Headers are limited to 64
+entries: token names (1–128 ASCII characters), values up to 8192 characters,
+without CR/LF/NUL. Ambiguous but structurally valid authorities (userinfo,
+percent-encoded hosts, legacy numeric IPs) import with unknown destination coverage.
+
 Unknown tool names accept JSON-object arguments and receive a minimum policy decision
 of review. These schemas describe recorded data, not callable interfaces.
 
@@ -37,4 +43,7 @@ Limits: 5 MiB raw UTF-8, 64 KiB per line (before trimming), 10,000 nonblank even
 surrogates, invalid argument types and unsupported schema versions reject the import.
 Errors are bounded codes plus optional source line numbers, never payload echoes.
 
-See `samples/benign.jsonl` and `samples/risky.jsonl` for complete synthetic examples.
+See `samples/benign.jsonl`, `samples/risky.jsonl` and `samples/forensic.jsonl` for
+synthetic examples. Event version remains 1.0. Analysis adds comparison/coverage
+fields without removing the original selected-policy fields. See
+`docs/rules-and-replay.md` for rule versions, API configuration and replay semantics.
