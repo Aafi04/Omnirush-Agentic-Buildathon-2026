@@ -11,3 +11,5 @@ frontend/dist
 *.pem
 *.key
 *.log
+playwright-report
+test-results

@@ -141,7 +141,7 @@ analysis, while the report counts its curated content. Different counts are expe
 - No report predicts subsequent agent behavior. Counterfactual policy replay
   evaluates **recorded actions only**; it never executes them.
 
-## Release checks and browser verification gap
+## Release checks and browser verification
 
 `python scripts/test.py` runs the backend/frontend tests and TypeScript check;
 `npm run build` builds the production assets. `python scripts/smoke.py --port 8000`
@@ -158,14 +158,10 @@ leaks, truncated excerpts, sensitive identifier collisions, 10,000 recognized
 values, download Blob bytes/types, safe filenames and URL cleanup, keyboard evidence
 navigation, loading/errors and stale-backend refusal.
 
-During this milestone, `browser_open` for the local app timed out; a subsequent
-built-in browser tab inventory was empty. No desktop screenshot, narrow viewport,
-real file-picker or real download completion was observed. DOM tests and responsive
-CSS are **not** a real-browser visual audit. This gap remains explicit rather than
-claiming browser verification from an HTTP response or a mocked anchor click.
-
-Manual acceptance checklist for an available browser (desktop and ~390px wide):
-Explore demo; inspect both summaries; switch policy; follow evidence links by
-keyboard; open redaction details; import a valid/invalid JSONL file; confirm error
-recovery; download both formats and verify bytes/digest; check no horizontal overflow,
-visible focus and readable contrast. A screen-reader/contrast audit remains separate.
+The pinned `npm run e2e` suite now performs this audit with real headless Chromium:
+production-server startup, demo/evidence, local policy switching, valid/malformed
+file recovery, native download events, desktop/tablet/mobile overflow checks,
+keyboard flows, uncaught page errors, first-party HTTP failures and serious/critical
+axe-core accessibility checks. It stores viewport screenshots and failure traces in
+Playwright artifacts. This is automated evidence, not a substitute for a human
+visual or screen-reader review; tests do not claim perfect accessibility.

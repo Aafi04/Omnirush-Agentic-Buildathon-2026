@@ -95,6 +95,27 @@ Individual checks: `python -m pytest -q`, `npm test`, `npm run typecheck`.
 Production build: `npm run build`. HTTP smoke test against a running server:
 `python scripts/smoke.py` (or `python scripts/smoke.py --port 8001`).
 
+### Real Chromium release audit
+
+The pinned Playwright suite uses the production build and FastAPI server through an
+isolated configurable port (default `4173`), with no mocks or external runtime APIs:
+
+```sh
+npx playwright install chromium
+npm run e2e
+```
+
+`npm run e2e` automatically builds the frontend, starts Uvicorn, waits for
+`/api/health`, runs headless Chromium, and shuts the server down. Set
+`AGENTTRACE_E2E_PORT` to use another isolated port. The five E2E checks cover startup
+and uncaught page errors, demo findings/evidence, local policy switching and
+continuation labels, valid/malformed/recovery file input, actual JSON/Markdown
+downloads and report structure/fingerprints, desktop/tablet/mobile screenshots,
+overflow, keyboard flows, and serious/critical axe-core violations. Browser tests
+fail on first-party network errors and HTTP 5xx responses, but ignore optional
+favicon/resource absence. Playwright reports, screenshots and traces are retained
+as CI artifacts when the Ubuntu job fails.
+
 Tests cover bounded import rejection, all six signatures and ambiguity boundaries,
 policy precedence and exact goldens, sanitized field/identifier correlation, report
 determinism/digests/escaping, header/private-key/credential redaction, sample/file
@@ -221,8 +242,10 @@ contents, escaping, opaque references, fingerprint privacy and heuristic limits.
   reports contain an event metadata index, not raw payload copies.
   Warnings/findings remain event-linked; timestamps do not reorder events.
 - Responsive CSS, labeled controls, focus styles and keyboard navigation are
-  included. Automated DOM interaction tests pass; real-browser visual/accessibility
-  audits and full browser end-to-end tests remain outstanding.
+  included. Headless Chromium release tests run locally/CI; screenshots are saved
+  artifacts, not a substitute for human visual judgment. axe-core checks serious
+  and critical violations, and browser download completion is verified by download
+  events and saved bytes.
 - Remaining planned work: custom policy/config editors,
   broader real-world trace coverage and full browser/accessibility auditing.
   No authentication, charts, live agents or hosted AI are implemented.

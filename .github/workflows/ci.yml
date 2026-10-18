@@ -70,3 +70,42 @@ jobs:
             sleep 1
           done
           docker exec agenttrace-ci python scripts/smoke.py
+
+  e2e:
+    name: Playwright Chromium E2E
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked application and E2E dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.lock
+          npm ci --no-audit --no-fund
+      - name: Install Chromium and Linux browser packages
+        run: npx playwright install --with-deps chromium
+      - name: Run production-server Playwright audit
+        run: npm run e2e
+      - name: Upload Playwright report and failure artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14

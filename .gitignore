@@ -12,3 +12,5 @@ __pycache__/
 *.key
 *.log
 .coverage
+playwright-report/
+test-results/
