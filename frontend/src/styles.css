@@ -209,6 +209,7 @@ details p { margin: .45rem 0 0; max-width: 900px; font-size: .72rem; line-height
 .difference-event button:hover, .finding-links button:hover, .coverage-row-item button:hover, .linked button:hover, .continuation-note button:hover { border-color: rgb(117 217 234 / .35); color: #c4f7ff; background: rgb(117 217 234 / .14); }
 .difference-arrow { color: #527188; }
 .decision-transition { display: flex; flex-wrap: wrap; align-items: center; gap: .42rem; color: #94aabd; font-size: .74rem; white-space: nowrap; }
+.decision-arrow-text { color: #6b8498; }
 .decision-transition svg { color: #587389; }
 .decision-word { font: 750 .69rem/1.2 ui-monospace, monospace; text-transform: uppercase; }
 .decision-word-allow { color: var(--mint); }
@@ -354,7 +355,7 @@ footer > span { display: inline-flex; align-items: center; gap: .5rem; }
 .visual-policy-summary-card__interventions > div { display: flex; justify-content: space-between; gap: .6rem; }
 .visual-policy-summary-card__interventions dt { color: #7790a1; font-size: .64rem; }
 .visual-policy-summary-card__interventions dd { color: #c0d3df; font: 750 .7rem/1 ui-monospace, monospace; }
-.visual-policy-summary-card__note { margin-top: .7rem; color: #647c8e; font-size: .61rem; }
+.visual-policy-summary-card__note { margin-top: .7rem; color: #8299a9; font-size: .61rem; }
 .visual-policy-flow { min-width: 0; }
 .visual-policy-flow__header { display: flex; align-items: flex-end; justify-content: space-between; gap: .8rem; }
 .visual-policy-flow__header h2 { font-size: .93rem; }
