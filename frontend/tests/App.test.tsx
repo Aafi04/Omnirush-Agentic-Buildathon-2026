@@ -332,4 +332,15 @@ describe('import-to-analysis workbench', () => {
     expect(screen.getByText('Synthetic sanitized test data.')).toBeVisible();
     expect(reportLink).toHaveAttribute('href', '#reports');
   });
+
+  it('filters the source timeline without losing event identity or evidence navigation', async () => {
+    mockFetch(); render(<App />);
+    await userEvent.click(screen.getByRole('button', { name: 'Risky sample' }));
+    const timeline = await screen.findByRole('region', { name: 'Event timeline' });
+    await userEvent.selectOptions(screen.getByLabelText('Timeline filter'), 'tool_result');
+    expect(within(timeline).getByRole('button', { name: /Result/ })).toBeVisible();
+    expect(within(timeline).queryByRole('button', { name: /process\.exec/ })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Search events by ID, tool, or time'), 'e2');
+    expect(within(timeline).getByRole('button', { name: /Result/ })).toHaveTextContent('e2');
+  });
 });
