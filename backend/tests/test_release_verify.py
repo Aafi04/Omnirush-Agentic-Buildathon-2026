@@ -1,13 +1,9 @@
 """Substantive boundary tests for the standalone offline release verifier."""
-import importlib.util
 import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("release_verify", ROOT / "scripts" / "release_verify.py")
-release_verify = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(release_verify)
+from agenttrace import release_verify
 
 
 def copy_samples(destination: Path) -> None:
