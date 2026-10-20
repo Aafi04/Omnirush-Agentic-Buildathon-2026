@@ -45,6 +45,10 @@ jobs:
           PIP_NO_INDEX: '1'
           npm_config_offline: 'true'
         run: .venv/bin/python scripts/test.py
+      - name: Offline release invariant verifier
+        env:
+          PIP_NO_INDEX: '1'
+        run: .venv/bin/python scripts/release_verify.py
       - name: Frontend production build
         env:
           npm_config_offline: 'true'

@@ -95,6 +95,18 @@ Individual checks: `python -m pytest -q`, `npm test`, `npm run typecheck`.
 Production build: `npm run build`. HTTP smoke test against a running server:
 `python scripts/smoke.py` (or `python scripts/smoke.py --port 8001`).
 
+### Standalone offline release verifier
+
+`python scripts/release_verify.py` is an independent, machine-readable release
+gate. It loads all checked-in synthetic JSONL fixtures through the real importer,
+engine, both policies and sanitized report boundary without starting a server or
+executing trace content. It cross-checks exact source/report fingerprints, expected
+finding and policy matrices, event/call evidence references, continuation references,
+six-rule metadata, report payload exclusion and secret-marker absence. It prints one
+deterministic JSON result to stdout and returns nonzero on a missing, malformed or
+inconsistent fixture; it writes no reports or temporary files. CI runs this gate
+after locked dependency installation, separately from pytest and HTTP smoke tests.
+
 ### Real Chromium release audit
 
 The pinned Playwright suite uses the production build and FastAPI server through an
