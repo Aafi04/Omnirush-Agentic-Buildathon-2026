@@ -1,299 +1,286 @@
-# AgentTrace
+# AgentTrace — the flight recorder for autonomous AI agents
 
-An offline-capable flight recorder for recorded AI-agent tool activity. Milestone 3
-imports JSONL, reconstructs a timeline, applies **six deterministic detectors**, and
-compares baseline/strict classifications side by side on the **same trace**, with
-centralized best-effort redaction and deterministic JSON/Markdown evidence reports.
+<p align="center">
+  <strong>Investigate recorded agent actions, follow forensic evidence, and replay safety policies against the same execution trace.</strong>
+</p>
 
-**Replay never executes an action and never predicts subsequent agent behavior.**
-Every recorded call is evaluated independently, including calls recorded after a
-hypothetical block. No findings is not proof of safety.
+<p align="center">
+  <a href="https://agenttrace-public.onrender.com">Try the full-stack demo</a> ·
+  <a href="https://agenttrace-frontend.vercel.app">Open the alternate frontend</a> ·
+  <a href="https://github.com/Aafi04/Omnirush-Agentic-Buildathon-2026/actions/workflows/ci.yml">View CI</a>
+</p>
 
-## Setup (clean Linux)
+<p align="center">
+  <a href="https://github.com/Aafi04/Omnirush-Agentic-Buildathon-2026/actions/workflows/ci.yml"><img src="https://github.com/Aafi04/Omnirush-Agentic-Buildathon-2026/actions/workflows/ci.yml/badge.svg?branch=main" alt="Rebuildability CI status" /></a>
+  <img src="https://img.shields.io/badge/Node-22.19.0-86e8c7?logo=node.js&logoColor=0b1718" alt="Node.js 22.19.0" />
+  <img src="https://img.shields.io/badge/Python-3.11.9-75d9ea?logo=python&logoColor=07151d" alt="Python 3.11.9" />
+  <img src="https://img.shields.io/badge/analysis-local--first-8fa9ef" alt="Local-first analysis" />
+</p>
 
-Requirements: Node **22.19.0** with npm **10.9.3**, Python **3.11.9** with venv/pip.
-Runtime versions are pinned in `.nvmrc` and `.python-version`. No global dependency
-installation is needed. If your Linux distribution lacks Python's venv module,
-use the Docker route rather than modifying system Python.
+AgentTrace is an offline-capable forensic debugger for **recorded** autonomous-agent tool activity. Import a bounded UTF-8 JSONL trace, reconstruct its source-ordered timeline, inspect six deterministic rule signatures, and compare baseline versus strict policy decisions without executing anything.
 
-From the repository root:
+> **Replay is counterfactual classification, not execution.** AgentTrace never launches a recorded command, fetches a recorded URL, writes a recorded path, or predicts what an agent would do after a hypothetical block. No findings is not proof of safety.
+
+![AgentTrace loaded synthetic investigation overview](docs/assets/agenttrace-overview.png)
+
+## Try AgentTrace online
+
+| Entry point | What it is |
+| --- | --- |
+| **[Primary full-stack demo](https://agenttrace-public.onrender.com)** | Render-hosted FastAPI service and React workbench. |
+| **[Alternate frontend](https://agenttrace-frontend.vercel.app)** | Vercel-hosted frontend that rewrites `/api/*` to the Render service. |
+
+The free Render instance may sleep when idle, so the first request can take up to about a minute. Use synthetic or otherwise safe-to-share traces: the public service has no authentication or durable trace storage.
+
+## Try it in 60 seconds
+
+1. Open the **[full-stack demo](https://agenttrace-public.onrender.com)**.
+2. Choose **Explore demo** to load the synthetic forensic recording.
+3. Read the overview: eight recorded events and six rule-backed findings.
+4. Compare **Baseline** (`1 allow / 7 review / 0 block`) with **Strict** (`1 allow / 0 review / 7 block`).
+5. Open a changed action or finding to jump into linked timeline evidence.
+6. Download the sanitized JSON or Markdown report from **Reports**.
+
+The bundled forensic sample is synthetic. Under baseline, rule matches and unknown coverage are reviewed; under strict, they are blocked. Intervention categories can overlap, so their counts are not meant to be added together.
+
+## What AgentTrace helps you answer
+
+When an autonomous agent has already acted, three questions matter:
+
+- **What was recorded?** Source order, tool calls, results, timestamps, integrity warnings, and linked call/result context.
+- **What deserves investigation?** Six bounded, deterministic forensic rules with stable rule IDs, matched fields, evidence excerpts, and limitations.
+- **How would policy change the classification?** The same recording is evaluated under baseline and strict policies, with changed decisions and explanations linked back to the evidence.
+
+This is an investigation workbench, not a live monitor, prevention gateway, universal detector, or hosted AI service.
+
+## The workflow: Load → Inspect → Replay
+
+### 1. Load a trace
+
+Import a validated UTF-8 JSONL file up to **5 MiB**, with at most **10,000 events** and bounded line/nesting limits. Or start with one of the checked-in synthetic samples: Benign, Risky, or Six-rule forensic.
+
+### 2. Inspect the recording
+
+Use the connected timeline to move between tool calls and results. Search or filter events, open findings, inspect sanitized payload excerpts, copy safe opaque identifiers, and follow linked evidence without losing source context.
+
+### 3. Replay policy decisions
+
+Baseline and strict policies classify the **same trace** independently. The UI makes the decision distribution, intervention categories, per-action differences, unknown coverage, and recorded continuation labels visible without implying that a hypothetical block was enforced.
+
+![Baseline and strict policy replay comparison](docs/assets/policy-replay.png)
+
+## Evidence-first investigation
+
+The evidence inspector keeps the conclusion ahead of the raw payload:
+
+- event ID, call ID, tool/result metadata, and source position;
+- policy decision, matched rule sources, and analysis coverage;
+- sanitized bounded payload excerpts rendered as text;
+- links to related events and recorded continuation references;
+- explicit warnings when coverage is limited or an export should be reviewed.
+
+![Selected forensic finding in the evidence inspector](docs/assets/evidence-inspector.png)
+
+## Six deterministic detection categories
+
+| Rule | Category | What it identifies |
+| --- | --- | --- |
+| **R001** | Protected recursive forced deletion | Narrow `rm` / `--recursive` + `--force` attempts targeting protected roots. |
+| **R002** | Direct privileged execution | Direct `sudo`, `su`, or `doas` invocation with `shell:false`. |
+| **R003** | Credential-sensitive write | Writes to selected SSH, AWS, or Google Cloud credential paths. |
+| **R004** | External sensitive-literal request | Recorded requests to non-allowlisted hosts containing recognized sensitive literals or private-key headers. |
+| **R005** | Download-to-shell pipeline | A narrow direct `curl`/`wget` → `sh`/`bash` pipeline. Shell scripts remain unknown coverage even when this signature matches. |
+| **R006** | Outside-workspace write | Lexical writes outside the configured workspace root. |
+
+All rules are version `1.0`, high severity, deterministic, and intentionally bounded. A match is a recorded-action signature, not proof that harm occurred. See the complete signatures, near-misses, path semantics, and limitations in [Six-rule forensic engine and policy replay](docs/rules-and-replay.md).
+
+## Quickstart: rebuild locally
+
+### Requirements
+
+- Node **22.19.0** with npm **10.9.3**
+- Python **3.11.x**; the repository pins **3.11.9** in `.python-version`
+- A virtual environment and pip
+
+Runtime versions are pinned in `.nvmrc` and `.python-version`. Dependencies are locked in `package-lock.json` and `requirements.lock`.
 
 ```sh
 python3.11 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.lock
 npm ci --no-audit --no-fund
-python scripts/test.py
-npm run build
 ```
 
-On Windows PowerShell, create the same venv with `python -m venv .venv` and activate
-with `.venv\Scripts\Activate.ps1`. All remaining commands are the same.
+On Windows PowerShell:
 
-The initial dependency install needs network access or a prepared package cache.
-**After setup, tests and the built application need no internet.** A completely
-air-gapped first installation requires transferring a prebuilt Docker image or
-dependency bundle. Lockfiles pin both direct and transitive packages; no paid API,
-model provider, remote font, analytics or cloud service is used.
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.lock
+npm ci --no-audit --no-fund
+```
 
-## Run
+### Run the application
 
-After building, with the venv active:
+Build the frontend, then start FastAPI from the repository root:
 
 ```sh
+npm run build
 python -m uvicorn agenttrace.api:app --app-dir backend --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-Open **http://localhost:8000**. FastAPI serves both the built UI and API.
-Load **Benign sample** (0 findings, one allow decision), or **Risky sample**
-(R002 evidence at `risky-1`; review under baseline, block under strict).
-The risky sample also includes an unknown call at `risky-3`: review under baseline,
-block under strict. Both samples are explicitly synthetic; nothing was executed.
-Open **Six-rule sample** for all six detectors: baseline has 1 allow / 7 review /
-0 block; strict has 1 allow / 0 review / 7 block. Six rule-triggered interventions
-and two unknown-action interventions overlap on the shell pipeline. Changing the
-replay selector changes the timeline locally, without reimporting or executing data.
-Findings, policy interventions and unknown coverage have separate evidence links.
-Import your own UTF-8 `.jsonl` file to inspect sanitized payloads and linked calls/results.
+Open <http://localhost:8000>. For frontend development, keep the API running and use a second terminal:
 
-### Guided judge workflow
+```sh
+npm run dev
+```
 
-1. Choose **Explore demo** to load the clearly synthetic forensic recording.
-2. Compare baseline's 1 allow / 7 review with strict's 1 allow / 7 block. Categories
-   overlap: R005 is a rule finding **and** an unknown shell-coverage intervention.
-3. Follow an action's difference link to its timeline entry and field evidence.
-   Change **Replay policy** locally; later recorded continuation is not a prediction.
-4. Inspect the heuristic-redaction notice and sanitized R004 evidence. A detected
-   sensitive literal is represented by an opaque reference, not displayed verbatim.
-5. Use **Reports** in section navigation, then **Download JSON** or **Download
-   Markdown**. Downloads include analyzed conclusions/evidence but exclude raw event
-   arguments/output. Review the reports before sharing: redaction can miss secrets.
+Vite serves <http://localhost:5173> and proxies `/api` to the loopback backend. No credentials, model provider, or hosted AI service is required.
 
-The loaded header is compact; section navigation, separate findings/interventions/
-unknown panels, focus styles and paginated collections support investigation without
-a dashboard redesign. Raw imported filenames are deliberately not displayed.
+## Verification and reproducibility
 
-For frontend development, run the API as above and `npm run dev` in another terminal.
-Vite serves http://localhost:5173 and proxies `/api` to the loopback backend.
-
-`.env.example` documents optional local values, but no dotenv loader is used;
-pass host/port as CLI arguments. No credentials are required.
-
-## Test and build
-
-With the project venv active, the single cross-platform, offline test command is:
+The project has one cross-platform test command. Run it with the project virtual environment active:
 
 ```sh
 python scripts/test.py
 ```
 
-It runs Pytest, Vitest/Testing Library, and the TypeScript checker, stopping on the
-first nonzero exit. Linux `make test` is an alias using `.venv/bin/python`.
-No package download command is invoked by the test runner.
+It runs Pytest, Vitest/Testing Library, and the TypeScript checker without downloading packages. On Linux, `make test` is an alias using `.venv/bin/python`.
 
-Individual checks: `python -m pytest -q`, `npm test`, `npm run typecheck`.
-Production build: `npm run build`. HTTP smoke test against a running server:
-`python scripts/smoke.py` (or `python scripts/smoke.py --port 8001`).
+Useful individual checks:
 
-### Standalone offline release verifier
+```sh
+python -m pytest -q
+npm test
+npm run typecheck
+npm run build
+python scripts/smoke.py --port 8001
+```
 
-`python scripts/release_verify.py` is an independent, machine-readable release
-gate. It loads all checked-in synthetic JSONL fixtures through the real importer,
-engine, both policies and sanitized report boundary without starting a server or
-executing trace content. It cross-checks exact source/report fingerprints, expected
-finding and policy matrices, event/call evidence references, continuation references,
-six-rule metadata, report payload exclusion and secret-marker absence. It prints one
-deterministic JSON result to stdout and returns nonzero on a missing, malformed or
-inconsistent fixture; it writes no reports or temporary files. CI runs this gate
-after locked dependency installation, separately from pytest and HTTP smoke tests.
+### Independent release verifier
 
-### Real Chromium release audit
+The release invariant verifier is separate from the normal test suite and does not start a server:
 
-The pinned Playwright suite uses the production build and FastAPI server through an
-isolated configurable port (default `4173`), with no mocks or external runtime APIs:
+```sh
+python scripts/release_verify.py
+```
+
+It loads the checked-in synthetic fixtures through the real importer, engine, both policy runs, and sanitized report boundary. It checks source/report fingerprints, expected rule and policy matrices, evidence references, continuation references, payload exclusion, and synthetic secret-marker absence. It prints one deterministic JSON result and returns nonzero for inconsistent fixtures. GitHub Actions runs this gate after locked dependency installation.
+
+### Real Chromium audit
+
+The pinned Playwright suite builds the production frontend, starts FastAPI, and audits the real application with headless Chromium:
 
 ```sh
 npx playwright install chromium
 npm run e2e
 ```
 
-`npm run e2e` automatically builds the frontend, starts Uvicorn, waits for
-`/api/health`, runs headless Chromium, and shuts the server down. Set
-`AGENTTRACE_E2E_PORT` to use another isolated port. The five E2E checks cover startup
-and uncaught page errors, demo findings/evidence, local policy switching and
-continuation labels, valid/malformed/recovery file input, actual JSON/Markdown
-downloads and report structure/fingerprints, desktop/tablet/mobile screenshots,
-overflow, keyboard flows, and serious/critical axe-core violations. Browser tests
-fail on first-party network errors and HTTP 5xx responses, but ignore optional
-favicon/resource absence. Playwright reports, screenshots and traces are retained
-as CI artifacts when the Ubuntu job fails.
+The suite covers the synthetic demo, findings/evidence navigation, local policy switching, malformed and valid JSONL recovery, native JSON/Markdown downloads, responsive overflow at desktop/tablet/mobile sizes, keyboard flows, uncaught page errors, first-party HTTP failures, and serious/critical axe-core violations. To audit a deployed service instead:
 
-Tests cover bounded import rejection, all six signatures and ambiguity boundaries,
-policy precedence and exact goldens, sanitized field/identifier correlation, report
-determinism/digests/escaping, header/private-key/credential redaction, sample/file
-UI import, errors, keyboard evidence navigation, local policy switching, pagination,
-and backend-report-only download bytes, filenames and object-URL cleanup.
-Frontend fetches are mocked; backend tests exercise the real in-process API.
-The separate smoke test exercises a real TCP server and its built assets.
+```sh
+AGENTTRACE_BASE_URL=https://your-service.example npm run e2e
+```
 
-## Docker deployment
+The GitHub Actions workflow repeats the application checks, production build, live HTTP smoke, Docker build, read-only container smoke, and Chromium audit on Ubuntu.
+
+## Docker quickstart
+
+The multi-stage image installs the pinned Node and Python dependencies, runs frontend/backend tests during the build, copies the built UI into the FastAPI runtime, and runs as non-root UID `10001`.
 
 ```sh
 docker build -t agenttrace:0.1.0 .
-docker run --rm --name agenttrace -p 127.0.0.1:8000:8000 --read-only --tmpfs /tmp agenttrace:0.1.0
+docker run --rm --name agenttrace \
+  -p 127.0.0.1:8000:8000 \
+  --read-only --tmpfs /tmp \
+  agenttrace:0.1.0
 ```
 
-The multi-stage build installs all dependencies, runs frontend/backend checks and
-builds assets; runtime uses non-root UID 10001. No host paths, mounts or secrets
-are required. Official pinned Node/Python images supply all needed system libraries;
-no additional OS packages are necessary. The image binds to `0.0.0.0` and honors
-Render's injected `PORT` (falling back to 8000 locally). `render.yaml` declares a
-free Docker web service with `/api/health` as its health check. The service is
-unauthenticated; do not place sensitive traces in it.
+The container binds to `0.0.0.0` and honors Render's injected `PORT`, falling back to `8000`. The runtime needs no outbound network access after the image is built. Dependency installation and base-image pulls still require network access or a prepared cache.
 
-For a Vercel Hobby alternate frontend, import this same repository at its root,
-use `npm ci` and `npm run build`, and set the output directory to `frontend/dist`.
-Configure `/api/:path*` to rewrite to the primary Render service URL. Vercel is
-frontend-only and depends on Render for the FastAPI API, uploads, and sanitized
-report downloads.
+## Architecture
 
-To run the release browser audit against an already deployed service, set
-`AGENTTRACE_BASE_URL=https://your-service.example` before `npm run e2e`. Without
-that variable the suite starts the local production server as before.
-
-### Public deployments
-
-- Primary Render service: <https://agenttrace-public.onrender.com>
-- Alternate Vercel frontend: <https://agenttrace-frontend.vercel.app>
-
-Both public URLs use the same repository and the same FastAPI contracts. Render
-is the primary full-stack service; Vercel serves only the React build and rewrites
-`/api/*` to Render. The free Render instance may sleep when idle, so the first
-request after inactivity can take 50 seconds or more. Neither deployment provides
-authentication or durable trace storage; use synthetic or otherwise safe-to-share
-traces only.
-
-An image can be exported with `docker save -o agenttrace.tar agenttrace:0.1.0`
-and loaded offline with `docker load -i agenttrace.tar`. Container runtime requires
-no outbound network access. Docker is not installed on the initial Windows build
-host; Linux/Docker checks run in GitHub Actions. Inspect the run for your commit;
-local Windows checks alone do not establish container success.
-
-## Linux CI and rebuildability audit
-
-`.github/workflows/ci.yml` runs on `ubuntu-latest` for pushes to `main`, pull
-requests and manual dispatch. It installs the versions from `.python-version` and
-`.nvmrc`, installs Python/npm dependencies from their lockfiles, and executes the
-single full test command, production build and real-server smoke test. Test steps
-use pip no-index/npm offline mode; tests have no external-service dependency.
-
-The Docker build repeats frontend tests/build and backend tests in BuildKit
-`RUN --network=none` layers, after dependency installation. CI also runs the built
-image read-only with `--network none` and smoke-tests it from inside the container
-over loopback. Dependency installation/image pulls still require network access.
-These network-isolated container checks are evidence only once the workflow passes.
-
-Local Docker builds require BuildKit (standard in current Docker). The initial
-Windows audit could not execute Docker because it was not installed. See
-[docs/rebuildability-audit.md](docs/rebuildability-audit.md) for all eight checks,
-local verification, scope and remaining verification items. Do not infer a CI pass
-from the presence of the workflow file; inspect the run for the relevant commit.
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| Schema and importer | `backend/agenttrace/schemas.py`, `importer.py` | Validate bounded JSONL, preserve source order, reject malformed recognized-tool arguments, and enforce limits. |
+| Forensic engine | `backend/agenttrace/engine/` | Apply six deterministic rules, unknown-coverage classification, and baseline/strict policy replay. |
+| Public boundary | `backend/agenttrace/redaction.py`, `reports.py` | Sanitize analysis surfaces and generate deterministic JSON/Markdown reports. |
+| API | `backend/agenttrace/api.py` | Serve the analysis API, synthetic samples, health endpoint, schema, and built frontend. |
+| Workbench | `frontend/src/` | React investigation interface, typed API client, timeline, replay comparison, evidence inspector, and exports. |
+| Verification | `backend/tests/`, `frontend/tests/`, `e2e/`, `scripts/` | Engine/API/boundary tests, UI tests, Chromium release audit, HTTP smoke, and release invariants. |
 
 ## API and contract
 
-- `GET /api/health` → `{ "status": "ok", "version": "0.1.0" }`.
-- `GET /api/schema` → versioned event JSON Schema, including known-tool constraints.
-- `GET /api/samples/benign`, `/risky` or `/forensic` → labeled synthetic JSONL.
-- `POST /api/analyze?policy=baseline` (or `strict`): raw UTF-8 JSONL body,
-  preferably `Content-Type: application/x-ndjson`.
+The public API is intentionally small:
 
-Successful analysis includes source SHA-256, policy ID/version/configuration,
-source-ordered events, integrity warnings, findings and per-call decisions. It also
-includes both runs in `comparison`, counts, difference explanations, intervention
-categories, `unknown_coverage`, rule metadata, and the effective `engine_config`.
-All public analysis fields cross the same backend sanitization boundary. Additional
-`sanitization` metadata describes version/count/limitations; `reports` contains
-canonical JSON text, Markdown text, format version and the JSON report SHA-256.
-Findings preserve event references, rule/version and matched field/offset evidence.
-Sensitive IDs use unique namespace aliases consistently across references; evidence
-values and configuration may be redacted. Internal detection still uses original data.
-Invalid inputs return HTTP 422 with `{ "error": { "code": "...", "line": 2 } }`;
-the line is null for whole-file errors. Files above 5 MiB return 413. No partial
-analysis is returned. See [schemas/README.md](schemas/README.md) for limits and fields.
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | Health and service version. |
+| `GET` | `/api/schema` | Versioned event schema and known-tool constraints. |
+| `GET` | `/api/samples/benign`, `/risky`, `/forensic` | Labeled synthetic JSONL samples. |
+| `POST` | `/api/analyze?policy=baseline` or `strict` | Analyze raw UTF-8 JSONL with `application/x-ndjson`. |
 
-### Detection and policy semantics
+Successful analysis returns source and report fingerprints, sanitized source-ordered events, integrity warnings, findings, policy decisions, both comparison runs, changed outcomes, unknown coverage, rule metadata, and effective configuration. Invalid inputs return bounded HTTP 422 errors; files above 5 MiB return 413; no partial analysis is returned.
 
-All rule versions are `1.0`; all six have high severity. R002 retains its original
-direct-invocation semantics. The engine adds R001 protected deletion, R003 credential
-writes, R004 external sensitive-literal requests, R005 download-to-shell pipelines,
-and R006 outside-workspace writes. See [docs/rules-and-replay.md](docs/rules-and-replay.md)
-for exact signatures, field evidence, unknown coverage, normalization and limitations.
+<details>
+<summary>Optional API configuration</summary>
 
-Both bundled policies are now **version 2.0**. Baseline reviews all rule matches and
-unknown actions; strict blocks them. Unmatched, resolved actions default to allow
-under limited coverage, not a safety guarantee. Precedence is **block > review >
-allow**, independent of rule order; unknown actions always have a minimum of review.
-Every recorded call is evaluated independently, including recorded continuation
-after a hypothetical block. Custom policy editing is not part of this milestone.
-
-Roots and exact allowed hosts are configurable per API request using an optional
-`X-AgentTrace-Config` JSON header (8 KiB maximum), e.g.:
+The API accepts an optional `X-AgentTrace-Config` JSON header up to 8 KiB. The UI uses documented defaults; configuration editing is API-only.
 
 ```json
 {"protected_roots":{"posix":["/etc","/home","/workspace"],"windows":["C:/Windows","C:/Users","C:/workspace"]},"workspace_roots":{"posix":["/workspace"],"windows":["C:/workspace"]},"allowed_hosts":["localhost","127.0.0.1","::1"]}
 ```
 
-Omitted fields use documented defaults; the response snapshots effective settings.
-The UI uses defaults; configuration editing is API-only. Invalid configuration is
-rejected without echoing its contents. Configuration never changes event data.
+Omitted fields use defaults. Roots and hosts are exact and bounded; wildcard hosts, URLs, usernames, malformed paths, duplicate keys, excessive nesting, and invalid configuration are rejected without echoing the submitted configuration.
+</details>
 
-### Report and redaction semantics
+## Reports, privacy, and safety boundaries
 
-`source_sha256` hashes the **exact original UTF-8 input bytes**, including blank
-lines and line endings. `reports.report_sha256` hashes the **exact UTF-8 bytes of
-`reports.json`**, including its one final LF; the digest is outside that report
-document. Reports have no generation timestamp, are invariant to the selected
-baseline/strict UI policy, and include both full policy runs. Canonical JSON sorts
-object keys, preserves source array order, uses compact separators and ASCII
-escaping. It is not a claim of RFC 8785 interoperability or a digital signature.
+AgentTrace keeps raw trace content in request/browser memory during analysis and returns sanitized bounded analysis to the UI. Nothing imported is executed, fetched, resolved against the host, persisted automatically, or logged by the application. Report downloads are explicit and contain sanitized conclusions/evidence, not raw event arguments or outputs.
 
-See [docs/reports-and-redaction.md](docs/reports-and-redaction.md) for report
-contents, escaping, opaque references, fingerprint privacy and heuristic limits.
+Redaction is **best effort**, not perfect secrecy. Unusual token formats, arbitrary encodings, transformed fragments, short fragments, or unknown sensitive field names can evade heuristics. False positives can also hide innocent evidence. Review every export before sharing and do not import material you cannot safely inspect.
 
-### Safety and limitations
+<details>
+<summary>Policy semantics and replay limitations</summary>
 
-- Importers never launch commands, fetch recorded URLs, write recorded paths or
-  execute trace-provided code. Paths are data and never mapped onto the host.
-- Traces live only in request/browser memory. No local storage, database, automatic
-  persistence or payload logs. Raw data is used for detection in request memory;
-  sanitized copies are returned to the local UI. Explicit report downloads persist
-  only the sanitized investigation document at the user's request.
-- Payloads render as React text, never HTML. Centralized heuristic redaction covers
-  common credential fields, auth/cookie headers, key blocks and synthetic markers.
-  **It is not perfect secrecy**: do not import material you cannot safely inspect,
-  and review every export before sharing. All checked-in examples are synthetic.
-- Timeline and investigation collections paginate at 100 entries. Payload excerpts
-  stop at 8,192 code units; evidence excerpts stop at 256 characters with explicit
-  truncation labels. Sanitized events remain available in the bounded API response;
-  reports contain an event metadata index, not raw payload copies.
-  Warnings/findings remain event-linked; timestamps do not reorder events.
-- Responsive CSS, labeled controls, focus styles and keyboard navigation are
-  included. Headless Chromium release tests run locally/CI; screenshots are saved
-  artifacts, not a substitute for human visual judgment. axe-core checks serious
-  and critical violations, and browser download completion is verified by download
-  events and saved bytes.
-- Remaining planned work: custom policy/config editors,
-  broader real-world trace coverage and full browser/accessibility auditing.
-  No authentication, charts, live agents or hosted AI are implemented.
+- Rule versions are `1.0`; bundled policies are `2.0`.
+- Baseline reviews rule matches and unknown coverage; strict blocks them; unmatched resolved actions default to allow under limited coverage.
+- Precedence is `block > review > allow`, independent of rule order.
+- Unknown actions are never automatically allowed.
+- Every recorded call is evaluated independently, including calls recorded after a hypothetical block.
+- A recorded continuation label identifies source-order evidence only. It is not a prediction that the agent would continue after enforcement.
+- Intervention categories can overlap and must not be added as mutually exclusive totals.
+- R005 can coexist with unknown shell coverage; R004 can coexist with unknown authority coverage; credential writes can trigger both R003 and R006.
 
-## Layout
+See [Six-rule forensic engine and policy replay](docs/rules-and-replay.md) for exact signatures and limitations.
+</details>
 
-`backend/agenttrace/`: typed schema, importer, pure engine, FastAPI routes.
-`backend/agenttrace/redaction.py` and `reports.py`: centralized public boundary and exports.
-`backend/tests/`: Pytest API/engine/boundary tests.
-`frontend/src/`: React workbench, typed API client, Tailwind plus responsive styling.
-`frontend/tests/`: Vitest/Testing Library interaction tests.
-`samples/`: synthetic benign/risky JSONL; `schemas/`: contract notes.
-`scripts/`: portable test runner and live HTTP smoke test.
+<details>
+<summary>Report determinism and redaction details</summary>
 
-Implementation and verification are performed through recorded OmniRush sessions.
+`source_sha256` hashes the exact accepted UTF-8 input bytes, including blank lines and line endings. `reports.report_sha256` hashes the exact UTF-8 bytes of the canonical JSON report, including its final LF. Reports are deterministic for the same accepted input/configuration and do not include generation time. This project-specific canonical encoding is not a claim of RFC 8785/JCS conformance or a digital signature.
+
+See [Investigation reports and sensitive-data boundary](docs/reports-and-redaction.md) for report contents, opaque references, source offsets, escaping, and heuristic limits.
+</details>
+
+## Public deployments
+
+- **Render primary:** <https://agenttrace-public.onrender.com>
+- **Vercel frontend:** <https://agenttrace-frontend.vercel.app>
+
+Render is the primary full-stack service. Vercel serves the React build and rewrites `/api/*` to Render. Neither public deployment provides authentication or durable trace storage.
+
+## Documentation map
+
+- [Six-rule forensic engine and policy replay](docs/rules-and-replay.md)
+- [Investigation reports and sensitive-data boundary](docs/reports-and-redaction.md)
+- [Rebuildability audit](docs/rebuildability-audit.md)
+- [JSONL schema and limits](schemas/README.md)
+- [GitHub Actions workflow](.github/workflows/ci.yml)
+- [Visual QA report and before/after evidence](docs/visual-qa-report.md)
+
+## Buildathon provenance
+
+AgentTrace was built and verified as part of the **OmniRush Agentic Buildathon 2026**. Implementation and verification were performed through recorded OmniRush sessions. The project uses no hosted AI service, model provider, remote font, analytics service, or runtime credential.
+
+No `LICENSE` or `CONTRIBUTING.md` file is currently checked into this repository, so no license or contribution terms are inferred here.
