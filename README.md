@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://agenttrace-public.onrender.com">Try the full-stack demo</a> ·
   <a href="https://agenttrace-frontend.vercel.app">Open the alternate frontend</a> ·
+  <a href="https://youtu.be/MDC6o1U7QQY">Watch the demo video</a> ·
   <a href="https://github.com/Aafi04/Omnirush-Agentic-Buildathon-2026/actions/workflows/ci.yml">View CI</a>
 </p>
 
